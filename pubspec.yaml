@@ -1,0 +1,51 @@
+name: r_mobile
+description: "R Mobile"
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Управление состоянием — аналог Redux/Zustand
+  flutter_riverpod: ^2.5.1
+
+  # Навигация — аналог React Router
+  go_router: ^13.2.0
+
+  # HTTP клиент — аналог axios / requests
+  dio: ^5.4.3+1
+
+  # Безопасное хранилище токена (Keychain на iOS, Keystore на Android)
+  flutter_secure_storage: ^9.0.0
+
+  # Локальная БД для офлайн-режима (key-value, быстрый)
+  hive_flutter: ^1.1.0
+
+  # Графики для аналитики
+  fl_chart: ^0.68.0
+
+  # Форматирование дат
+  intl: ^0.19.0
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0 
+
+
+flutter:
+
+
+  uses-material-design: true
+
+
