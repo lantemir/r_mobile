@@ -28,15 +28,19 @@ class ApiClient {
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           final token = await tokenStorage.getToken();
+
           if (token != null) {
-            // RMT использует стандартный DRF Token
-            // Заголовок: Authorization: Token abc123...
-            options.headers['Authorization'] = 'Token $token';
+            options.headers['Authorization'] = 'Bearer $token';
+          } else {
+            print('=== NO TOKEN FOUND');
           }
           handler.next(options); // продолжить запрос
         },
         onError: (DioException error, handler) {
           // Здесь можно обработать 401 (токен устарел)
+          print(
+            '=== ERROR: ${error.response?.statusCode} ${error.requestOptions.path}',
+          );
           handler.next(error);
         },
       ),

@@ -1,6 +1,5 @@
 import '../domain/user.dart';
 
-// Расширяет User — добавляет умение парсить JSON от Django
 class UserModel extends User {
   const UserModel({
     required super.id,
@@ -10,23 +9,18 @@ class UserModel extends User {
     super.email,
     required super.userType,
   });
-  // Фабричный конструктор — принимает JSON от Django
-  // GET /api/v1/accounts/users/me/ возвращает примерно:
-  // {
-  //   "id": 1,
-  //   "username": "kilibayev",
-  //   "first_name": "Ashirbek",
-  //   "last_name": "Kilibayev",
-  //   "email": "a@mail.com",
-  //   "user_type": "TRADE_AGENT"
-  // }
+
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id: json['id'] as int,
-      username: json['username'] as String,
+      // id может отсутствовать — используем 0 по умолчанию
+      id: json['id'] as int? ?? 0,
+      // Django возвращает display_name если нет username
+      username:
+          json['username'] as String? ?? json['display_name'] as String? ?? '',
       firstName: json['first_name'] as String? ?? '',
       lastName: json['last_name'] as String? ?? '',
       email: json['email'] as String?,
+      // user_type тоже может отличаться
       userType: json['user_type'] as String? ?? '',
     );
   }
