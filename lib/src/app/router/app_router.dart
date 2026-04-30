@@ -2,8 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/auth_providers.dart';
-import '../../features/auth/presentation/home_screen.dart';
+import '../../features/home/presentation/home_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/tasks/presentation/tasks_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   // Следим за состоянием авторизации
@@ -32,7 +33,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       // Сюда будем добавлять новые экраны:
-      // GoRoute(path: '/tasks', builder: ...),
+      GoRoute(path: '/tasks', builder: (context, state) => const TasksScreen()),
       // GoRoute(path: '/orders', builder: ...),
     ],
   );

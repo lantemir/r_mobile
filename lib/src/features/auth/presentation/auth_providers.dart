@@ -21,7 +21,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient(ref.read(tokenStorageProvider));
 });
 
-final AuthRepositoryProvider = Provider<AuthRepository>((ref) {
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepositoryImpl(ref.read(apiClientProvider));
 });
 
@@ -118,5 +118,5 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
 // Финальный провайдер — его используют экраны
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(ref.read(AuthRepositoryProvider));
+  return AuthNotifier(ref.read(authRepositoryProvider));
 });
