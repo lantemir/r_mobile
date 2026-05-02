@@ -156,6 +156,7 @@ class _MenuGrid extends StatelessWidget {
     _MenuItem(Icons.task_alt_rounded, 'ЗАДАЧИ', '/tasks'),
     _MenuItem(Icons.local_offer_rounded, 'АКЦИИ', ''),
     _MenuItem(Icons.receipt_long_rounded, 'НАКЛАДНЫЕ', ''),
+    _MenuItem(Icons.shopping_cart_rounded, 'ЗАКАЗЫ', '/orders'),
     _MenuItem(Icons.book_rounded, 'ЖУРНАЛ', ''),
     _MenuItem(Icons.map_rounded, 'КАРТА', ''),
     _MenuItem(Icons.point_of_sale_rounded, 'КАССА', ''),
@@ -193,7 +194,7 @@ class _MenuCard extends StatelessWidget {
 
     return InkWell(
       // Навигация только если роут задан
-      onTap: hasRoute ? () => context.go(item.route) : null,
+      onTap: hasRoute ? () => context.push(item.route) : null,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         decoration: BoxDecoration(

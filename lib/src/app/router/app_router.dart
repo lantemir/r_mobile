@@ -5,6 +5,7 @@ import '../../features/auth/presentation/auth_providers.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/tasks/presentation/tasks_screen.dart';
+import '../../features/orders/presentation/orders_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   // Следим за состоянием авторизации
@@ -34,7 +35,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       // Сюда будем добавлять новые экраны:
       GoRoute(path: '/tasks', builder: (context, state) => const TasksScreen()),
-      // GoRoute(path: '/orders', builder: ...),
+      GoRoute(
+        path: '/orders',
+        builder: (context, state) => const OrdersScreen(),
+      ),
     ],
   );
 });

@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../storage/token_storage.dart';
 import 'api_constants.dart';
