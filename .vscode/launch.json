@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Local",
+      "request": "launch",
+      "type": "dart",
+      "args": ["--dart-define-from-file=env/local.json"]
+    },
+    {
+      "name": "Dev",
+      "request": "launch",
+      "type": "dart",
+      "args": ["--dart-define-from-file=env/dev.json"]
+    },
+    {
+      "name": "Prod",
+      "request": "launch",
+      "type": "dart",
+      "args": ["--dart-define-from-file=env/prod.json"]
+    }
+  ]
+}
