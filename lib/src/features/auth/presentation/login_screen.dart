@@ -79,7 +79,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   // Заголовок
                   Text(
-                    'RMT',
+                    'R-Mobile',
                     style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colorScheme.primary,
@@ -87,7 +87,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     textAlign: TextAlign.center,
                   ),
                   Text(
-                    'Remote Mobile Trade',
+                    'Remote Trade',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
