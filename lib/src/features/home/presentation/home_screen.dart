@@ -63,6 +63,9 @@ class HomeScreen extends ConsumerWidget {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: 0,
+        onDestinationSelected: (index) {
+          if (index == 2) context.push('/analytics');
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
