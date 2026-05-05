@@ -7,6 +7,7 @@ import '../../features/auth/presentation/login_screen.dart';
 import '../../features/tasks/presentation/tasks_screen.dart';
 import '../../features/orders/presentation/orders_screen.dart';
 import '../../features/analytics/presentation/analytics_screen.dart';
+import '../../features/sync/presentation/sync_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   // Следим за состоянием авторизации
@@ -44,6 +45,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/analytics',
         builder: (context, state) => const AnalyticsScreen(),
       ),
+      GoRoute(path: '/sync', builder: (context, state) => const SyncScreen()),
     ],
   );
 });

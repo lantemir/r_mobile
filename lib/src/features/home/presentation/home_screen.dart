@@ -65,6 +65,7 @@ class HomeScreen extends ConsumerWidget {
         selectedIndex: 0,
         onDestinationSelected: (index) {
           if (index == 2) context.push('/analytics');
+          if (index == 3) context.push('/sync');
         },
         destinations: const [
           NavigationDestination(
