@@ -17,7 +17,7 @@ class TaskRepositoryImpl implements TaskRepository {
   Future<PaginatedTasks> getTasks({String? cursor}) async {
     try {
       // Если есть cursor — используем его как URL параметр
-      print('=== TASKS REQUEST: ${ApiConstants.tasks}');
+      print('=== TASKS REQUEST: ${ApiConstants.routeTasks}');
       final response = await _client.dio.get(
         ApiConstants.tasks,
         queryParameters: cursor != null ? {'cursor': cursor} : null,

@@ -64,6 +64,7 @@ class HomeScreen extends ConsumerWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: 0,
         onDestinationSelected: (index) {
+          if (index == 1) context.push('/route');
           if (index == 2) context.push('/analytics');
           if (index == 3) context.push('/sync');
         },

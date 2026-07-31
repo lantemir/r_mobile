@@ -16,7 +16,7 @@ class OrderRepositoryImpl implements OrderRepository {
   @override
   Future<PaginatedOrders> getOrders({String? cursor}) async {
     try {
-      print('=== ORDERS REQUEST: ${ApiConstants.orders}');
+      print('=== ORDERS REQUEST: ${ApiConstants.routeOrders}');
 
       final response = await _client.dio.get(
         ApiConstants.orders,
