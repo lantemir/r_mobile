@@ -1,4 +1,5 @@
 import 'order.dart';
+import 'create_order_params.dart';
 
 class PaginatedOrders {
   final List<Order> results;
@@ -19,4 +20,7 @@ abstract class OrderRepository {
 
   // Сохранить в кэш
   Future<void> cacheOrders(List<Order> orders);
+
+  // Создать новый заказ с товарами из корзины
+  Future<Order> createOrder(CreateOrderParams params);
 }

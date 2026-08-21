@@ -21,6 +21,7 @@ class RouteOutlet {
   final double? longitude;
   final String status;
   final List<RouteOutletContact> contacts;
+  final List<String> counterparties;
 
   const RouteOutlet({
     required this.id,
@@ -31,6 +32,7 @@ class RouteOutlet {
     this.longitude,
     required this.status,
     required this.contacts,
+    this.counterparties = const [],
   });
 
   // Основной контакт — тот кто принимает решения

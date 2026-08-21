@@ -28,6 +28,7 @@ class RouteOutletModel extends RouteOutlet {
     super.longitude,
     required super.status,
     required super.contacts,
+    super.counterparties,
   });
 
   factory RouteOutletModel.fromJson(Map<String, dynamic> json) {
@@ -50,6 +51,15 @@ class RouteOutletModel extends RouteOutlet {
         .map((c) => RouteOutletContactModel.fromJson(c as Map<String, dynamic>))
         .toList();
 
+    // Контрагенты — список UUID (может прийти как список строк
+    // или список объектов {id: ...}, в зависимости от сериализатора)
+    final rawCounterparties = json['counterparties'] as List? ?? [];
+    final counterparties = rawCounterparties.map((c) {
+      if (c is String) return c;
+      if (c is Map<String, dynamic>) return c['id'] as String;
+      return c.toString();
+    }).toList();
+
     return RouteOutletModel(
       id: json['id'] as String,
       title: json['title'] as String? ?? '',
@@ -59,6 +69,7 @@ class RouteOutletModel extends RouteOutlet {
       longitude: lng,
       status: json['status'] as String? ?? 'PENDING',
       contacts: contacts,
+      counterparties: counterparties,
     );
   }
 }

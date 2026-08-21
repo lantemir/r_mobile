@@ -1,4 +1,6 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:r_mobile/src/features/orders/domain/create_order_params.dart';
 
 import '../../../features/auth/presentation/auth_providers.dart';
 import '../data/order_repository_impl.dart';
@@ -128,3 +130,65 @@ final ordersProvider = StateNotifierProvider<OrdersNotifier, OrdersState>((
 ) {
   return OrdersNotifier(ref.read(orderRepositoryProvider));
 });
+
+class CreateOrderState {
+  final bool isCreating;
+  final String? error;
+  final Order? createdOrder;
+
+  const CreateOrderState({
+    this.isCreating = false,
+    this.error,
+    this.createdOrder,
+  });
+
+  CreateOrderState copyWith({
+    bool? isCreating,
+    String? error,
+    Order? createdOrder,
+    bool clearError = false,
+  }) {
+    return CreateOrderState(
+      isCreating: isCreating ?? this.isCreating,
+      error: clearError ? null : error ?? this.error,
+      createdOrder: createdOrder ?? this.createdOrder,
+    );
+  }
+}
+
+class CreateOrderNotifier extends StateNotifier<CreateOrderState> {
+  final OrderRepository _repository;
+
+  CreateOrderNotifier(this._repository) : super(const CreateOrderState());
+
+  Future<bool> create(CreateOrderParams params) async {
+    state = state.copyWith(isCreating: true, clearError: true);
+
+    try {
+      final order = await _repository.createOrder(params);
+      state = state.copyWith(isCreating: false, createdOrder: order);
+      return true;
+    } on DioException catch (e) {
+      state = state.copyWith(
+        isCreating: false,
+        error: e.response?.data.toString() ?? e.message,
+      );
+      return false;
+    } catch (e) {
+      state = state.copyWith(
+        isCreating: false,
+        error: e.toString().replaceFirst('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  void reset() {
+    state = const CreateOrderState();
+  }
+}
+
+final createOrderProvider =
+    StateNotifierProvider<CreateOrderNotifier, CreateOrderState>((ref) {
+      return CreateOrderNotifier(ref.read(orderRepositoryProvider));
+    });

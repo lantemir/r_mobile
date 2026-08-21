@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../domain/route_outlet.dart';
 import 'visit_providers.dart';
 import 'create_order_screen.dart';
+import '../../catalog/presentation/catalog_screen.dart';
 
 class OutletDetailScreen extends ConsumerStatefulWidget {
   final RouteOutlet outlet;
@@ -229,6 +230,49 @@ class _OutletDetailScreenState extends ConsumerState<OutletDetailScreen> {
                 ),
               ),
             ),
+
+            if (visitState.isSuccess && visitState.visitId != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: widget.outlet.counterparties.isEmpty
+                      ? () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'У точки нет привязанного контрагента',
+                              ),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => CatalogScreen(
+                              outletId: widget.outlet.id,
+                              outletName: widget.outlet.name,
+                              visitId: visitState.visitId!,
+                              counterpartyId:
+                                  widget.outlet.counterparties.first,
+                            ),
+                          ),
+                        ),
+                  icon: const Icon(Icons.list_alt_rounded),
+                  label: const Text(
+                    'Открыть каталог',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.teal,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
 
             if (visitState.isSuccess && visitState.visitId != null) ...[
               const SizedBox(height: 12),
