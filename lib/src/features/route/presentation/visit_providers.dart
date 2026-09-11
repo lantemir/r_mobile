@@ -79,7 +79,7 @@ class VisitNotifier extends StateNotifier<VisitState> {
           'outlet': outletId,
           'started': now,
           'ended': now, // пока равно started
-          'status': 'VISITED',
+          'status': 'MERCHANDISING_ACCEPTED',
           'created': now,
           'planned_order': plannedOrder,
           // GeoJSON формат — Django ожидает именно так

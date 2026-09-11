@@ -142,7 +142,54 @@ class CartNotifier extends StateNotifier<CartState> {
     } else {
       newItems[item.id] = CartItem(item: item, quantity: quantity);
     }
+    _syncBonus(newItems, item, quantity);
     state = state.copyWith(items: newItems);
+  }
+
+  // Ключ бонусной позиции в корзине — отдельный от обычных товаров,
+  // чтобы не конфликтовать, если тот же товар продаётся и напрямую
+  String _bonusKey(String triggerItemId, String bonusProductMatchId) =>
+      'bonus:$triggerItemId:$bonusProductMatchId';
+
+  // Пересчитывает бонусную позицию (N+M) по товару-триггеру.
+  // Срабатывает каждый раз при изменении количества товара с bonus-акцией.
+  void _syncBonus(
+    Map<String, CartItem> items,
+    CatalogItem triggerItem,
+    double triggerQuantity,
+  ) {
+    final bonus = triggerItem.bonus;
+    if (bonus == null) return;
+
+    final key = _bonusKey(triggerItem.id, bonus.productMatchId);
+
+    if (triggerQuantity <= 0 || bonus.buyQuantity <= 0) {
+      items.remove(key);
+      return;
+    }
+
+    var times = triggerQuantity ~/ bonus.buyQuantity;
+    if (bonus.oneTimePurchase && times > 1) times = 1;
+    final earned = times * bonus.bonusQuantity;
+
+    if (earned <= 0) {
+      items.remove(key);
+      return;
+    }
+
+    items[key] = CartItem(
+      item: CatalogItem(
+        id: bonus.productMatchId,
+        productId: bonus.productMatchId,
+        title: bonus.title,
+        price: 0,
+        activityMatchId: triggerItem.activityMatchId,
+        activitySettingId: bonus.activitySettingId,
+        isBonus: true,
+        warehouseId: bonus.warehouseId,
+      ),
+      quantity: earned.toDouble(),
+    );
   }
 
   // Увеличить на 1

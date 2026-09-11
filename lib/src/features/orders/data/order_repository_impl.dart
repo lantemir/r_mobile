@@ -109,6 +109,13 @@ class OrderRepositoryImpl implements OrderRepository {
       throw Exception('Нет доступных типов оплаты');
     }
 
+    // Склад: берём тот, где реально есть остатки товаров корзины (params.warehouseId,
+    // посчитан на экране из CatalogItem.warehouseId). Если он неизвестен — как раньше,
+    // первый склад маршрута; это может привести к ошибке остатков на сервере,
+    // но лучше так, чем блокировать заказ, если остатки просто не удалось определить.
+    final resolvedWarehouseId =
+        params.warehouseId ?? (warehouses[0] as Map)['id'] as String;
+
     // Договоры контрагента
     final contractsResp = await _client.dio.get(
       'route/contracts/',
@@ -128,7 +135,7 @@ class OrderRepositoryImpl implements OrderRepository {
       'counterparty': params.counterpartyId,
       'contract': (contracts[0] as Map)['id'],
       'price_type': (priceTypes[0] as Map)['id'],
-      'warehouse': (warehouses[0] as Map)['id'],
+      'warehouse': resolvedWarehouseId,
       'payment_type': (paymentTypes[0] as Map)['id'],
       'visit': params.visitId,
       'order_type': 'REGULAR_ORDER',
@@ -145,6 +152,8 @@ class OrderRepositoryImpl implements OrderRepository {
               'created': DateTime.now().toUtc().toIso8601String(),
               if (item.activityMatchId != null)
                 'activity_match': item.activityMatchId,
+              if (item.activitySettingId != null)
+                'activity_setting': item.activitySettingId,
             },
           )
           .toList(),
@@ -160,7 +169,7 @@ class OrderRepositoryImpl implements OrderRepository {
         'counterparty': params.counterpartyId,
         'contract': (contracts[0] as Map)['id'],
         'price_type': (priceTypes[0] as Map)['id'],
-        'warehouse': (warehouses[0] as Map)['id'],
+        'warehouse': resolvedWarehouseId,
         'payment_type': (paymentTypes[0] as Map)['id'],
         'visit': params.visitId,
         'order_type': 'REGULAR_ORDER',
@@ -178,6 +187,8 @@ class OrderRepositoryImpl implements OrderRepository {
                 // Передаём акцию, только если она есть у позиции
                 if (item.activityMatchId != null)
                   'activity_match': item.activityMatchId,
+                if (item.activitySettingId != null)
+                  'activity_setting': item.activitySettingId,
               },
             )
             .toList(),

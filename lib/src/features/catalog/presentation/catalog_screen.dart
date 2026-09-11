@@ -331,6 +331,34 @@ class _CatalogItemCard extends StatelessWidget {
                     const SizedBox(height: 4),
                   ],
 
+                  // Подсказка про бонусный товар (механика N+M)
+                  if (item.bonus != null) ...[
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.card_giftcard_rounded,
+                          size: 11,
+                          color: Colors.green.shade700,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '+${item.bonus!.bonusQuantity} шт «${item.bonus!.title}» '
+                            'бесплатно за ${item.bonus!.buyQuantity} шт',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green.shade700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+
                   // Название
                   Text(
                     item.title,
@@ -695,6 +723,25 @@ class _CartBottomSheet extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            if (cartItem.item.isBonus)
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.card_giftcard_rounded,
+                                    size: 11,
+                                    color: Colors.green.shade700,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'БОНУС',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             Text(
                               cartItem.item.title,
                               style: const TextStyle(
@@ -721,16 +768,20 @@ class _CartBottomSheet extends ConsumerWidget {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: colorScheme.primary,
+                          color: cartItem.item.isBonus
+                              ? Colors.green.shade700
+                              : colorScheme.primary,
                         ),
                       ),
-                      // Удалить
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, size: 18),
-                        onPressed: () => ref
-                            .read(cartProvider.notifier)
-                            .setQuantity(cartItem.item, 0),
-                      ),
+                      // Удалить — бонусная позиция управляется автоматически
+                      // и пересчитывается при изменении количества основного товара
+                      if (!cartItem.item.isBonus)
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          onPressed: () => ref
+                              .read(cartProvider.notifier)
+                              .setQuantity(cartItem.item, 0),
+                        ),
                     ],
                   ),
                 );
@@ -827,6 +878,9 @@ class _OrderConfirmScreen extends ConsumerStatefulWidget {
 class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
   DateTime _deliveryDate = DateTime.now().add(const Duration(days: 1));
   final _commentCtrl = TextEditingController();
+  // Ошибка, которую находим ещё до отправки на сервер (например, товары
+  // корзины лежат на разных складах — заказ по ним одним запросом не оформить)
+  String? _localError;
 
   @override
   void dispose() {
@@ -837,18 +891,37 @@ class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
   Future<void> _createOrder() async {
     final cartState = ref.read(cartProvider);
 
+    // Заказ идёт с одного склада, а сервер отклонит позицию, если остатков
+    // по ней нет именно на этом складе — поэтому берём склад по остаткам
+    // товаров корзины, а не первый попавшийся из справочника.
+    final warehouseIds = cartState.cartItems
+        .map((ci) => ci.item.warehouseId)
+        .whereType<String>()
+        .toSet();
+
+    if (warehouseIds.length > 1) {
+      setState(() {
+        _localError =
+            'Товары в корзине с разных складов — оформите их отдельными заказами.';
+      });
+      return;
+    }
+    setState(() => _localError = null);
+
     final params = CreateOrderParams(
       outletId: widget.outletId,
       counterpartyId: widget.counterpartyId,
       visitId: widget.visitId,
       deliveryDate: _deliveryDate,
       comment: _commentCtrl.text,
+      warehouseId: warehouseIds.isEmpty ? null : warehouseIds.first,
       items: cartState.cartItems
           .map(
             (ci) => CreateOrderItemParams(
               productMatchId: ci.item.id,
               quantity: ci.quantity,
               activityMatchId: ci.item.activityMatchId,
+              activitySettingId: ci.item.activitySettingId,
             ),
           )
           .toList(),
@@ -878,6 +951,7 @@ class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
   Widget build(BuildContext context) {
     final cartState = ref.watch(cartProvider);
     final createState = ref.watch(createOrderProvider);
+    final error = _localError ?? createState.error;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -940,6 +1014,14 @@ class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
                       ),
                       child: Row(
                         children: [
+                          if (ci.item.isBonus) ...[
+                            Icon(
+                              Icons.card_giftcard_rounded,
+                              size: 14,
+                              color: Colors.green.shade700,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
                           Expanded(
                             child: Text(
                               ci.item.title,
@@ -961,7 +1043,9 @@ class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: colorScheme.primary,
+                              color: ci.item.isBonus
+                                  ? Colors.green.shade700
+                                  : colorScheme.primary,
                             ),
                           ),
                         ],
@@ -1035,7 +1119,7 @@ class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
               ),
             ),
 
-            if (createState.error != null) ...[
+            if (error != null) ...[
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -1044,7 +1128,7 @@ class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  createState.error!,
+                  error,
                   style: TextStyle(color: colorScheme.onErrorContainer),
                 ),
               ),

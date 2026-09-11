@@ -89,6 +89,53 @@ offline-handling logic. The `sync` feature (`sync_screen.dart`) is a manual "rec
 re-triggers `loadTasks()`/`loadOrders()` in sequence; it has no real background sync or outbox for offline
 writes yet — writes (e.g. `createOrder`) are online-only.
 
+### Discounts & promotions (`activities`)
+
+Backend models three independent discount mechanisms on `Activity` (`rmt-web/apps/activities/models.py`);
+mobile currently implements two of them:
+
+- **BUY price override** (`ActivityProduct.product_type == BUY`) — read in `catalog_repository_impl.dart`,
+  shown as `CatalogItem.effectivePrice`.
+- **N+M bonus item** (`ActivitySetting.setting_type == N_PLUS_M` + paired `ActivityProduct.product_type ==
+  BONUS`) — implemented client-side, see below.
+- **Cascade discount** (`ActivityCascadeDiscount`) — not implemented. Backend exposes
+  `GET route/cascade-discount/?activity_setting=<id>`; nothing on mobile calls it yet.
+
+**Price is never sent to the server.** `createOrder()` only sends `product_match` + `activity_match` +
+`activity_setting` per line; the backend always recomputes the authoritative price in
+`BaseOrderRouteInputMixin.get_final_price()` (`rmt-web/apps/orders/serializers.py`). `CatalogItem.effectivePrice`
+is a preview for the UI, not a commitment — don't build logic that assumes it's final.
+
+**N+M bonus items are synthesized in the cart, not the catalog.** `catalog_repository_impl.dart` builds
+`CatalogItem.bonus` (a `BonusOffer`: bonus product's match id, `buyQuantity`/`bonusQuantity`/`oneTimePurchase`,
+and the `N_PLUS_M` `ActivitySetting.id`) from the same `route/activity-match-products/` response already
+fetched for BUY pricing — no extra request needed. `CartNotifier._syncBonus()` (`catalog_providers.dart`)
+recomputes the bonus line every time the triggering item's quantity changes
+(`earned = (quantity ~/ buyQuantity) * bonusQuantity`, capped to one trigger if `oneTimePurchase`), storing it
+under its own cart key (`bonus:<triggerItemId>:<bonusProductMatchId>`) so it never collides with a normal cart
+entry. Bonus `CartItem`s have `CatalogItem.isBonus == true`, price `0`, and are not user-removable in the cart
+UI — they're derived state, not independent line items.
+
+**Expired/future activities are filtered client-side.** `route/activity-matches/` already includes
+`started`/`ended` and each `ActivitySetting.is_active`; `catalog_repository_impl.dart` drops any activity
+match outside `[started, ended]` (1-day grace since `ended` is a date, not a timestamp) before building any
+price/bonus maps, so an expired promo just doesn't appear instead of being computed and hidden in the UI.
+
+**`activity_setting` is sent alongside `activity_match`** on order contents
+(`CreateOrderItemParams.activitySettingId`), resolved per `activity_match` by preferring the `ActivitySetting`
+with `is_active == true`, else the first one. This doesn't change pricing (the server only needs
+`activity_match` for that) but records which specific mechanic produced the line — matters once an activity
+has more than one setting.
+
+### Order creation: warehouse selection
+
+Found while testing the above: `createOrder()` used to always POST `warehouses[0]` from `route/warehouses/`,
+regardless of where the cart's products actually have stock — this fails server-side inventory validation
+whenever an org has more than one warehouse. `CatalogItem.warehouseId` (sourced from `route/inventories/`'s
+`warehouse` field) is threaded through to `CreateOrderParams.warehouseId`; `catalog_screen.dart` resolves it
+from the cart before submitting and blocks client-side — instead of surfacing the backend's opaque
+`non_field_errors` message — if cart items span more than one warehouse.
+
 ### IDs
 
 Backend uses UUIDs (not ints) for most domain records — model IDs are `String`, except `User.id` which is

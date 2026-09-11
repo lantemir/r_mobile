@@ -12,9 +12,13 @@ class CatalogItemModel extends CatalogItem {
     super.priceTypeName,
     super.activityName,
     super.activityMatchId,
+    super.activitySettingId,
     super.activityPrice,
     super.stock,
     super.reserved,
+    super.bonus,
+    super.isBonus,
+    super.warehouseId,
   });
 
   factory CatalogItemModel.fromJsonWithPrice(
@@ -23,8 +27,11 @@ class CatalogItemModel extends CatalogItem {
     double quantity = 0,
     double reserved = 0,
     String? activityMatchId,
+    String? activitySettingId,
     String? activityName,
     String? activityPrice,
+    BonusOffer? bonus,
+    String? warehouseId,
   }) {
     final double price = double.tryParse(priceStr) ?? 0;
 
@@ -51,9 +58,12 @@ class CatalogItemModel extends CatalogItem {
       priceTypeName: null,
       activityName: activityName,
       activityMatchId: activityMatchId,
+      activitySettingId: activitySettingId,
       activityPrice: parsedActivityPrice,
       stock: quantity,
       reserved: reserved,
+      bonus: bonus,
+      warehouseId: warehouseId,
     );
   }
 
