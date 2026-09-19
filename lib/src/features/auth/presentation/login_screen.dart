@@ -27,6 +27,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  Future<void> _requestOtp() async {
+    // Код запрашивается только по логину — пароль/OTP здесь не нужен
+    final username = _usernameCtrl.text.trim();
+    if (username.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Сначала введите логин (номер маршрута)')),
+      );
+      return;
+    }
+
+    final success = await ref.read(authProvider.notifier).requestOtp(username);
+    if (!mounted) return;
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Код запрошен. Узнайте его у супервайзера.'),
+        ),
+      );
+    }
+    // Ошибку покажет общий блок authState.error ниже
+  }
+
   Future<void> _submit() async {
     // Проверяем форму — если не валидна, стоп
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -127,7 +150,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ? "Введите логин"
                         : null,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
+
+                  // Кнопка запроса OTP-кода — для торговых агентов
+                  // (у дашборд-пользователей обычный пароль, им кнопка не нужна,
+                  // но лишним нажатием пароль не ломается — можно жать всем)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: authState.isOtpLoading ? null : _requestOtp,
+                      child: authState.isOtpLoading
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Получить код'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
 
                   // Поле пароля
                   TextFormField(

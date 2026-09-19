@@ -4,6 +4,11 @@ import 'user.dart';
 // Слой data/ будет реализовывать этот контракт
 
 abstract class AuthRepository {
+  // Запросить одноразовый код (OTP) для торгового агента
+  // POST /api/v1/accounts/login/code/ — Django генерирует код и кладёт в кэш
+  // на 5 минут; сам код агенту сообщает супервайзер (видит его в админке)
+  Future<void> requestOtp({required String username});
+
   // Войти — отправляет username+password на Django
   // Возвращает токен при успехе
   Future<String> login({required String username, required String password});

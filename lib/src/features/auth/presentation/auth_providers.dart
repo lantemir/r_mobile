@@ -31,13 +31,15 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 // ──
 
 class AuthState {
-  final bool isLoading; // идёт ли запрос прямо сейчас
+  final bool isLoading; // идёт ли запрос логина прямо сейчас
+  final bool isOtpLoading; // идёт ли запрос кода (OTP) прямо сейчас
   final String? error; // текст ошибки если есть
   final bool isLoggedIn; // залогинен ли пользователь
   final User? user; // данные пользователя
 
   const AuthState({
     this.isLoading = false,
+    this.isOtpLoading = false,
     this.error,
     this.isLoggedIn = false,
     this.user,
@@ -47,6 +49,7 @@ class AuthState {
   // В Dart объекты неизменяемые — меняем через copyWith
   AuthState copyWith({
     bool? isLoading,
+    bool? isOtpLoading,
     String? error,
     bool? isLoggedIn,
     User? user,
@@ -54,6 +57,7 @@ class AuthState {
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
+      isOtpLoading: isOtpLoading ?? this.isOtpLoading,
       error: clearError ? null : error ?? this.error,
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
       user: user ?? this.user,
@@ -87,6 +91,24 @@ class AuthNotifier extends StateNotifier<AuthState> {
         await _repository.logout();
         state = state.copyWith(isLoggedIn: false);
       }
+    }
+  }
+
+  // Запросить одноразовый код (OTP) — для торговых агентов
+  // Код в ответе не приходит, его агенту сообщает супервайзер
+  Future<bool> requestOtp(String username) async {
+    state = state.copyWith(isOtpLoading: true, clearError: true);
+
+    try {
+      await _repository.requestOtp(username: username);
+      state = state.copyWith(isOtpLoading: false);
+      return true; // успех
+    } catch (e) {
+      state = state.copyWith(
+        isOtpLoading: false,
+        error: e.toString().replaceFirst('Exception: ', ''),
+      );
+      return false; // ошибка
     }
   }
 

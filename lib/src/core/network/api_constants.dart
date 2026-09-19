@@ -14,6 +14,7 @@ class ApiConstants {
 
   // Auth — из accounts/urls.py
   static const String login = 'accounts/login/';
+  static const String loginCode = 'accounts/login/code/';
   static const String me = 'accounts/users/me/';
 
   // Остальные модули — добавим по мере разработки

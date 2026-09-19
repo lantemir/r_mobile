@@ -12,6 +12,20 @@ class AuthRepositoryImpl implements AuthRepository {
   AuthRepositoryImpl(this._client);
 
   @override
+  Future<void> requestOtp({required String username}) async {
+    try {
+      // POST /api/v1/accounts/login/code/
+      // Body: {"username": "..."} — ответ 204, тела нет
+      await _client.dio.post(
+        ApiConstants.loginCode,
+        data: {'username': username},
+      );
+    } on DioException catch (e) {
+      throw Exception(ApiClient.parseError(e));
+    }
+  }
+
+  @override
   Future<String> login({
     required String username,
     required String password,
