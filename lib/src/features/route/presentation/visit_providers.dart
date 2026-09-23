@@ -10,25 +10,45 @@ import 'package:uuid/uuid.dart';
 import '../data/route_visit_model.dart';
 import '../domain/route_visit.dart';
 
-// Состояние создания визита
+// Состояние визита — от создания до завершения.
+// ВАЖНО: завершение визита (isEnded/endedAt) сейчас чисто локальное —
+// бэкенд route/visits/ умеет только создавать визит, обновлять (PATCH)
+// пока нельзя, поэтому started/ended на сервере как были равны друг другу
+// на старте визита, так и остаются. Реальная длительность в "Истории
+// визитов" появится только когда на бэкенде добавят эндпоинт обновления.
 class VisitState {
   final bool isLoading;
   final String? error;
   final bool isSuccess;
   final String? visitId; // id созданного визита
+  final DateTime? startedAt; // локальное время начала — для таймера на экране
+  final bool isEnded;
+  final DateTime? endedAt; // локальное время завершения — для отображения
 
   const VisitState({
     this.isLoading = false,
     this.error,
     this.isSuccess = false,
     this.visitId,
+    this.startedAt,
+    this.isEnded = false,
+    this.endedAt,
   });
+
+  // Сколько идёт (или шёл) визит — считаем по локальным меткам времени
+  Duration? get elapsed {
+    if (startedAt == null) return null;
+    return (endedAt ?? DateTime.now()).difference(startedAt!);
+  }
 
   VisitState copyWith({
     bool? isLoading,
     String? error,
     bool? isSuccess,
     String? visitId,
+    DateTime? startedAt,
+    bool? isEnded,
+    DateTime? endedAt,
     bool clearError = false,
   }) {
     return VisitState(
@@ -36,6 +56,9 @@ class VisitState {
       error: clearError ? null : error ?? this.error,
       isSuccess: isSuccess ?? this.isSuccess,
       visitId: visitId ?? this.visitId,
+      startedAt: startedAt ?? this.startedAt,
+      isEnded: isEnded ?? this.isEnded,
+      endedAt: endedAt ?? this.endedAt,
     );
   }
 }
@@ -99,12 +122,10 @@ class VisitNotifier extends StateNotifier<VisitState> {
         isLoading: false,
         isSuccess: true,
         visitId: visitId,
+        startedAt: DateTime.now(),
       );
       return true;
     } on DioException catch (e) {
-      print('=== VISIT ERROR: ${e.response?.statusCode}');
-      print('=== VISIT ERROR DATA: ${e.response?.data}');
-
       final data = e.response?.data;
       String message = 'Ошибка создания визита';
       if (data is Map) {
@@ -119,6 +140,18 @@ class VisitNotifier extends StateNotifier<VisitState> {
       state = state.copyWith(isLoading: false, error: e.toString());
       return false;
     }
+  }
+
+  // Завершить визит — ПОКА чисто локально: останавливает таймер на экране
+  // и запоминает итоговую длительность в памяти приложения.
+  // route/visits/ на бэкенде умеет только создавать визит (POST), обновлять
+  // существующий (PATCH ended/status) пока нельзя — поэтому started/ended
+  // на сервере остаются равны друг другу, как их отправил startVisit().
+  // Как только на бэкенде появится эндпоинт обновления — здесь будет
+  // реальный запрос, и длительность станет видна и в "Истории визитов".
+  void endVisit() {
+    if (state.visitId == null) return;
+    state = state.copyWith(isEnded: true, endedAt: DateTime.now());
   }
 
   void reset() {

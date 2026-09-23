@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:r_mobile/src/features/orders/domain/create_order_params.dart';
 
+import '../../../core/network/api_constants.dart';
 import '../../../features/auth/presentation/auth_providers.dart';
 import '../data/order_repository_impl.dart';
 import '../domain/order.dart';
@@ -191,4 +192,68 @@ class CreateOrderNotifier extends StateNotifier<CreateOrderState> {
 final createOrderProvider =
     StateNotifierProvider<CreateOrderNotifier, CreateOrderState>((ref) {
       return CreateOrderNotifier(ref.read(orderRepositoryProvider));
+    });
+
+// ─────────────────────────────────────────
+// 5. Справочники для экрана подтверждения заказа
+// (тип цены / договор / тип оплаты) — нужны только когда у контрагента
+// или маршрута их больше одного, иначе OrderRepositoryImpl сам подставит
+// значение по умолчанию
+// ─────────────────────────────────────────
+
+class OrderRefOption {
+  final String id;
+  final String title;
+  final bool isDefault;
+
+  const OrderRefOption({
+    required this.id,
+    required this.title,
+    this.isDefault = false,
+  });
+
+  factory OrderRefOption.fromJson(Map<String, dynamic> json) {
+    return OrderRefOption(
+      id: json['id'] as String,
+      title: json['title'] as String? ?? '',
+      isDefault: json['is_default'] as bool? ?? false,
+    );
+  }
+}
+
+class OrderCreationRefs {
+  final List<OrderRefOption> priceTypes;
+  final List<OrderRefOption> paymentTypes;
+  final List<OrderRefOption> contracts;
+
+  const OrderCreationRefs({
+    required this.priceTypes,
+    required this.paymentTypes,
+    required this.contracts,
+  });
+}
+
+// family по counterpartyId — у разных точек разные контрагенты и договоры
+final orderCreationRefsProvider = FutureProvider.autoDispose
+    .family<OrderCreationRefs, String>((ref, counterpartyId) async {
+      final client = ref.read(apiClientProvider);
+
+      final results = await Future.wait([
+        client.dio.get(ApiConstants.routePriceTypes),
+        client.dio.get(ApiConstants.routePaymentTypes),
+        client.dio.get(
+          ApiConstants.routeContracts,
+          queryParameters: {'counterparty': counterpartyId},
+        ),
+      ]);
+
+      List<OrderRefOption> parse(int index) => (results[index].data as List)
+          .map((e) => OrderRefOption.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      return OrderCreationRefs(
+        priceTypes: parse(0),
+        paymentTypes: parse(1),
+        contracts: parse(2),
+      );
     });

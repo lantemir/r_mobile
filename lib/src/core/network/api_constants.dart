@@ -26,4 +26,8 @@ class ApiConstants {
   static const String routeOrders = 'route/orders/';
   static const String routeTasks = 'route/tasks/';
   static const String routeVisits = 'route/visits/';
+  static const String routeWarehouses = 'route/warehouses/';
+  static const String routePriceTypes = 'route/price-types/';
+  static const String routePaymentTypes = 'route/payment-types/';
+  static const String routeContracts = 'route/contracts/';
 }

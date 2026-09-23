@@ -24,6 +24,13 @@ class CreateOrderParams {
   // (старое поведение, для случаев когда остатки не удалось определить).
   final String? warehouseId;
 
+  // Тип цены / договор / тип оплаты — выбираются на экране подтверждения
+  // заказа (см. orderCreationRefsProvider), если у контрагента их несколько.
+  // Если null — репозиторий сам подставит значение по умолчанию.
+  final String? priceTypeId;
+  final String? contractId;
+  final String? paymentTypeId;
+
   const CreateOrderParams({
     required this.outletId,
     required this.counterpartyId,
@@ -32,5 +39,8 @@ class CreateOrderParams {
     required this.comment,
     required this.items,
     this.warehouseId,
+    this.priceTypeId,
+    this.contractId,
+    this.paymentTypeId,
   });
 }

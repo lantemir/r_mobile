@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'auth_providers.dart';
+import 'otp_screen.dart';
 
 // ConsumerStatefulWidget — StatefulWidget который умеет читать провайдеры
 
@@ -41,10 +42,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
 
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Код запрошен. Узнайте его у супервайзера.'),
-        ),
+      // Дальше код вводится уже на отдельном экране с 6 полями
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => OtpScreen(username: username)),
       );
     }
     // Ошибку покажет общий блок authState.error ниже
@@ -175,7 +175,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     controller: _passwordCtrl,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
-                      labelText: 'Пароль / OTP',
+                      labelText: 'Пароль',
                       prefixIcon: const Icon(Icons.lock_outline_rounded),
                       border: const OutlineInputBorder(
                         borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -231,7 +231,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   // Подсказка про OTP
                   Text(
-                    'Торговые агенты входят через OTP-код',
+                    'Торговые агенты: нажмите «Получить код» — его сообщит супервайзер',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),

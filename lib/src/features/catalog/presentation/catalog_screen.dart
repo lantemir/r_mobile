@@ -251,6 +251,9 @@ class _CatalogItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final inCart = quantity > 0;
+    // Сколько ещё реально можно добавить сверх того, что уже в корзине —
+    // если 0 (нет остатка / всё зарезервировано), кнопки добавления выключены
+    final canAddMore = item.available > quantity;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -466,16 +469,16 @@ class _CatalogItemCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        // Увеличить
+                        // Увеличить — выключена, если остаток уже исчерпан
                         _QuantityButton(
                           icon: Icons.add_rounded,
-                          onTap: onIncrement,
+                          onTap: canAddMore ? onIncrement : null,
                           color: colorScheme.primary,
                         ),
                       ] else ...[
-                        // Кнопка добавить
+                        // Кнопка добавить — выключена для товаров без остатка
                         FilledButton.icon(
-                          onPressed: onIncrement,
+                          onPressed: canAddMore ? onIncrement : null,
                           icon: const Icon(Icons.add_rounded, size: 16),
                           label: const Text('В заказ'),
                           style: FilledButton.styleFrom(
@@ -528,7 +531,12 @@ class _CatalogItemCard extends StatelessWidget {
           FilledButton(
             onPressed: () {
               final q = double.tryParse(ctrl.text) ?? 0;
-              onSetQuantity(q);
+              // Ограничиваем доступным остатком (stock - reserved) — иначе
+              // тем же путём, что и кнопка "+", можно вручную ввести
+              // количество больше наличия
+              final maxQ = item.available > 0 ? item.available : 0.0;
+              final clamped = q.clamp(0, maxQ);
+              onSetQuantity(clamped.toDouble());
               Navigator.pop(context);
             },
             child: const Text('OK'),
@@ -545,7 +553,8 @@ class _CatalogItemCard extends StatelessWidget {
 
 class _QuantityButton extends StatelessWidget {
   final IconData icon;
-  final VoidCallback onTap;
+  // null — кнопка выключена (например, "+" когда остаток уже исчерпан)
+  final VoidCallback? onTap;
   final Color color;
 
   const _QuantityButton({
@@ -556,16 +565,17 @@ class _QuantityButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveColor = onTap != null ? color : Colors.grey;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: effectiveColor.withOpacity(0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, size: 20, color: color),
+        child: Icon(icon, size: 20, color: effectiveColor),
       ),
     );
   }
@@ -882,6 +892,19 @@ class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
   // корзины лежат на разных складах — заказ по ним одним запросом не оформить)
   String? _localError;
 
+  // Тип цены / договор / тип оплаты — если вариант один, подставляем сразу;
+  // если несколько — пользователь выбирает сам через выпадающий список ниже
+  String? _priceTypeId;
+  String? _paymentTypeId;
+  String? _contractId;
+  bool _refsInitialized = false;
+
+  String? _defaultRefId(List<OrderRefOption> options) {
+    if (options.isEmpty) return null;
+    final def = options.where((o) => o.isDefault);
+    return def.isNotEmpty ? def.first.id : options.first.id;
+  }
+
   @override
   void dispose() {
     _commentCtrl.dispose();
@@ -906,6 +929,21 @@ class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
       });
       return;
     }
+
+    // Справочники (тип цены/оплаты, договор) ещё грузятся или не загрузились —
+    // без них заказ отправлять нельзя, иначе не тот вариант уйдёт на сервер
+    final refs = ref
+        .read(orderCreationRefsProvider(widget.counterpartyId))
+        .valueOrNull;
+    if (refs == null ||
+        refs.priceTypes.isEmpty ||
+        refs.paymentTypes.isEmpty ||
+        refs.contracts.isEmpty) {
+      setState(() {
+        _localError = 'Справочники ещё не загружены, попробуйте ещё раз';
+      });
+      return;
+    }
     setState(() => _localError = null);
 
     final params = CreateOrderParams(
@@ -915,6 +953,9 @@ class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
       deliveryDate: _deliveryDate,
       comment: _commentCtrl.text,
       warehouseId: warehouseIds.isEmpty ? null : warehouseIds.first,
+      priceTypeId: _priceTypeId,
+      paymentTypeId: _paymentTypeId,
+      contractId: _contractId,
       items: cartState.cartItems
           .map(
             (ci) => CreateOrderItemParams(
@@ -951,8 +992,21 @@ class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
   Widget build(BuildContext context) {
     final cartState = ref.watch(cartProvider);
     final createState = ref.watch(createOrderProvider);
+    final refsAsync = ref.watch(
+      orderCreationRefsProvider(widget.counterpartyId),
+    );
     final error = _localError ?? createState.error;
     final colorScheme = Theme.of(context).colorScheme;
+
+    // Подставляем значения по умолчанию один раз, как только справочники
+    // подгрузились — дальше пользователь может изменить их через дропдауны
+    final refs = refsAsync.valueOrNull;
+    if (refs != null && !_refsInitialized) {
+      _refsInitialized = true;
+      _priceTypeId = _defaultRefId(refs.priceTypes);
+      _paymentTypeId = _defaultRefId(refs.paymentTypes);
+      _contractId = _defaultRefId(refs.contracts);
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -1105,6 +1159,38 @@ class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
             ),
             const SizedBox(height: 12),
 
+            // Тип цены / договор / тип оплаты — показываем дропдаун только
+            // когда вариантов реально больше одного, иначе выбирать нечего
+            if (refs != null) ...[
+              if (refs.priceTypes.length > 1) ...[
+                _RefDropdown(
+                  label: 'Тип цены',
+                  options: refs.priceTypes,
+                  value: _priceTypeId,
+                  onChanged: (v) => setState(() => _priceTypeId = v),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (refs.contracts.length > 1) ...[
+                _RefDropdown(
+                  label: 'Договор',
+                  options: refs.contracts,
+                  value: _contractId,
+                  onChanged: (v) => setState(() => _contractId = v),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (refs.paymentTypes.length > 1) ...[
+                _RefDropdown(
+                  label: 'Тип оплаты',
+                  options: refs.paymentTypes,
+                  value: _paymentTypeId,
+                  onChanged: (v) => setState(() => _paymentTypeId = v),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ],
+
             // Комментарий
             TextField(
               controller: _commentCtrl,
@@ -1166,6 +1252,44 @@ class _OrderConfirmScreenState extends ConsumerState<_OrderConfirmScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RefDropdown extends StatelessWidget {
+  final String label;
+  final List<OrderRefOption> options;
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  const _RefDropdown({
+    required this.label,
+    required this.options,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      // Без isExpanded длинный текст варианта (например, "Без договора")
+      // не ужимается под ширину поля и вылезает за края с overflow-баннером
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+      ),
+      items: options
+          .map(
+            (o) => DropdownMenuItem(
+              value: o.id,
+              child: Text(o.title, overflow: TextOverflow.ellipsis),
+            ),
+          )
+          .toList(),
+      onChanged: onChanged,
     );
   }
 }

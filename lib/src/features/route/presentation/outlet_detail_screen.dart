@@ -1,11 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../domain/route_outlet.dart';
 import 'visit_providers.dart';
-import 'create_order_screen.dart';
 import '../../catalog/presentation/catalog_screen.dart';
+
+// "1 ч 05 мин" / "5 мин" / "менее минуты" — используется и для тикающего
+// таймера активного визита, и для итоговой длительности после завершения
+String _formatElapsed(Duration d) {
+  if (d.inMinutes < 1) return 'менее минуты';
+  final hours = d.inHours;
+  final minutes = d.inMinutes.remainder(60);
+  if (hours > 0) return '$hours ч ${minutes.toString().padLeft(2, '0')} мин';
+  return '$minutes мин';
+}
 
 class OutletDetailScreen extends ConsumerStatefulWidget {
   final RouteOutlet outlet;
@@ -22,10 +33,28 @@ class OutletDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _OutletDetailScreenState extends ConsumerState<OutletDetailScreen> {
+  // Тикающий таймер, пока визит активен — просто дёргает setState раз в
+  // минуту, чтобы обновить надпись "начат N мин назад"; сама длительность
+  // считается из VisitState.elapsed по текущему времени, тут ничего не хранится
+  Timer? _ticker;
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final visitState = ref.watch(visitProvider);
+
+    // Пока визит идёт (начат, но не завершён) — обновляем экран раз в минуту
+    if (visitState.isSuccess && !visitState.isEnded && _ticker == null) {
+      _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
 
     ref.listen(visitProvider, (_, next) {
       if (next.error != null) {
@@ -36,10 +65,22 @@ class _OutletDetailScreenState extends ConsumerState<OutletDetailScreen> {
           ),
         );
       }
-      if (next.isSuccess) {
+      if (next.isSuccess && next.startedAt != null && !next.isEnded) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Визит начат успешно!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      if (next.isEnded && next.elapsed != null) {
+        _ticker?.cancel();
+        _ticker = null;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Визит завершён • ${_formatElapsed(next.elapsed!)}',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -154,20 +195,25 @@ class _OutletDetailScreenState extends ConsumerState<OutletDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Визит начат',
-                            style: TextStyle(
+                          Text(
+                            visitState.isEnded
+                                ? 'Визит завершён'
+                                : 'Визит начат',
+                            style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.green,
                             ),
                           ),
-                          Text(
-                            'ID: ${visitState.visitId?.substring(0, 8)}...',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.green.shade700,
+                          if (visitState.elapsed != null)
+                            Text(
+                              visitState.isEnded
+                                  ? 'Длительность: ${_formatElapsed(visitState.elapsed!)}'
+                                  : 'Идёт: ${_formatElapsed(visitState.elapsed!)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.green.shade700,
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),
@@ -274,26 +320,20 @@ class _OutletDetailScreenState extends ConsumerState<OutletDetailScreen> {
               ),
             ],
 
-            if (visitState.isSuccess && visitState.visitId != null) ...[
+            if (visitState.isSuccess && !visitState.isEnded) ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => CreateOrderScreen(
-                        outletId: widget.outlet.id,
-                        outletName: widget.outlet.name,
-                        visitId: visitState.visitId!,
-                      ),
-                    ),
-                  ),
-                  icon: const Icon(Icons.shopping_cart_rounded),
+                  onPressed: () => _confirmEndVisit(context),
+                  icon: const Icon(Icons.stop_circle_outlined),
                   label: const Text(
-                    'Создать заказ',
+                    'Завершить визит',
                     style: TextStyle(fontSize: 16),
                   ),
                   style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -304,6 +344,36 @@ class _OutletDetailScreenState extends ConsumerState<OutletDetailScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  // Подтверждение перед завершением визита. Пока без выбора статуса/причины —
+  // это уходит только в локальное состояние экрана, не на сервер (см.
+  // комментарий у VisitNotifier.endVisit), так что собирать доп. данные,
+  // которые всё равно никуда не сохранятся, было бы нечестно по отношению
+  // к пользователю
+  void _confirmEndVisit(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Завершить визит?'),
+        content: const Text(
+          'Приложение зафиксирует, сколько времени вы провели на точке.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              ref.read(visitProvider.notifier).endVisit();
+            },
+            child: const Text('Завершить'),
+          ),
+        ],
       ),
     );
   }

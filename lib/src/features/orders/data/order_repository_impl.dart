@@ -18,14 +18,10 @@ class OrderRepositoryImpl implements OrderRepository {
   @override
   Future<PaginatedOrders> getOrders({String? cursor}) async {
     try {
-      print('=== ORDERS REQUEST: ${ApiConstants.routeOrders}');
-
       final response = await _client.dio.get(
         ApiConstants.orders,
         queryParameters: cursor != null ? {'cursor': cursor} : null,
       );
-
-      print('=== ORDERS RESPONSE: ${response.statusCode}');
 
       final data = response.data as Map<String, dynamic>;
 
@@ -47,8 +43,7 @@ class OrderRepositoryImpl implements OrderRepository {
         next: nextCursor,
         previous: data['previous'] as String?,
       );
-    } on DioException catch (e) {
-      print('=== ORDERS ERROR: ${e.type} ${e.message}');
+    } on DioException catch (_) {
       // Нет сети — читаем из Hive
       final cached = await getCachedOrders();
       return PaginatedOrders(results: cached);
@@ -88,16 +83,21 @@ class OrderRepositoryImpl implements OrderRepository {
 
   @override
   Future<Order> createOrder(CreateOrderParams params) async {
-    // Загружаем справочники
+    // Загружаем справочники + договоры контрагента параллельно
     final results = await Future.wait([
-      _client.dio.get('route/price-types/'),
-      _client.dio.get('route/warehouses/'),
-      _client.dio.get('route/payment-types/'),
+      _client.dio.get(ApiConstants.routePriceTypes),
+      _client.dio.get(ApiConstants.routeWarehouses),
+      _client.dio.get(ApiConstants.routePaymentTypes),
+      _client.dio.get(
+        ApiConstants.routeContracts,
+        queryParameters: {'counterparty': params.counterpartyId},
+      ),
     ]);
 
     final priceTypes = results[0].data as List;
     final warehouses = results[1].data as List;
     final paymentTypes = results[2].data as List;
+    final contracts = results[3].data as List;
 
     if (priceTypes.isEmpty) {
       throw Exception('Нет доступных типов цен');
@@ -108,6 +108,9 @@ class OrderRepositoryImpl implements OrderRepository {
     if (paymentTypes.isEmpty) {
       throw Exception('Нет доступных типов оплаты');
     }
+    if (contracts.isEmpty) {
+      throw Exception('У контрагента нет договоров');
+    }
 
     // Склад: берём тот, где реально есть остатки товаров корзины (params.warehouseId,
     // посчитан на экране из CatalogItem.warehouseId). Если он неизвестен — как раньше,
@@ -116,61 +119,30 @@ class OrderRepositoryImpl implements OrderRepository {
     final resolvedWarehouseId =
         params.warehouseId ?? (warehouses[0] as Map)['id'] as String;
 
-    // Договоры контрагента
-    final contractsResp = await _client.dio.get(
-      'route/contracts/',
-      queryParameters: {'counterparty': params.counterpartyId},
-    );
-    final contracts = contractsResp.data as List;
-
-    if (contracts.isEmpty) {
-      throw Exception('У контрагента нет договоров');
-    }
+    // Тип цены / договор выбирает пользователь на экране подтверждения, когда
+    // вариантов несколько (см. orderCreationRefsProvider); если он этого не
+    // сделал (или вариант один) — берём отмеченный на бэкенде как is_default,
+    // а если такого нет — первый попавшийся. Тип оплаты is_default не имеет,
+    // список уже приходит отсортированным (payments.PaymentType — ordered model).
+    final resolvedPriceTypeId =
+        params.priceTypeId ?? _pickDefault(priceTypes)['id'] as String;
+    final resolvedContractId =
+        params.contractId ?? _pickDefault(contracts)['id'] as String;
+    final resolvedPaymentTypeId =
+        params.paymentTypeId ?? (paymentTypes[0] as Map)['id'] as String;
 
     const uuid = Uuid();
 
-    final orderData = {
-      'id': uuid.v4(),
-      'outlet': params.outletId,
-      'counterparty': params.counterpartyId,
-      'contract': (contracts[0] as Map)['id'],
-      'price_type': (priceTypes[0] as Map)['id'],
-      'warehouse': resolvedWarehouseId,
-      'payment_type': (paymentTypes[0] as Map)['id'],
-      'visit': params.visitId,
-      'order_type': 'REGULAR_ORDER',
-      'delivery_date': params.deliveryDate.toIso8601String().substring(0, 10),
-      'comment': params.comment,
-      'by_phone': false,
-      'created': DateTime.now().toUtc().toIso8601String(),
-      'contents': params.items
-          .map(
-            (item) => {
-              'id': uuid.v4(),
-              'product_match': item.productMatchId,
-              'quantity': item.quantity.toString(),
-              'created': DateTime.now().toUtc().toIso8601String(),
-              if (item.activityMatchId != null)
-                'activity_match': item.activityMatchId,
-              if (item.activitySettingId != null)
-                'activity_setting': item.activitySettingId,
-            },
-          )
-          .toList(),
-    };
-
-    print('=== ORDER PAYLOAD: $orderData'); // временно, для проверки акции
-
     final response = await _client.dio.post(
-      'route/orders/',
+      ApiConstants.routeOrders,
       data: {
         'id': uuid.v4(),
         'outlet': params.outletId,
         'counterparty': params.counterpartyId,
-        'contract': (contracts[0] as Map)['id'],
-        'price_type': (priceTypes[0] as Map)['id'],
+        'contract': resolvedContractId,
+        'price_type': resolvedPriceTypeId,
         'warehouse': resolvedWarehouseId,
-        'payment_type': (paymentTypes[0] as Map)['id'],
+        'payment_type': resolvedPaymentTypeId,
         'visit': params.visitId,
         'order_type': 'REGULAR_ORDER',
         'delivery_date': params.deliveryDate.toIso8601String().substring(0, 10),
@@ -240,5 +212,15 @@ class OrderRepositoryImpl implements OrderRepository {
       if (order.documentStatusDisplay != null)
         'document_status_display=${order.documentStatusDisplay}',
     ].join('&');
+  }
+
+  // Из списка справочника (price-types / contracts) берём отмеченный
+  // is_default=true, а если такого нет — первый элемент
+  Map<String, dynamic> _pickDefault(List items) {
+    for (final item in items) {
+      final map = item as Map;
+      if (map['is_default'] == true) return map.cast<String, dynamic>();
+    }
+    return (items.first as Map).cast<String, dynamic>();
   }
 }

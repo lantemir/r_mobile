@@ -11,16 +11,19 @@ import '../../features/sync/presentation/sync_screen.dart';
 import '../../features/route/presentation/route_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  // Следим за состоянием авторизации
-  // При изменении — роутер автоматически пересчитает редирект
-  final authState = ref.watch(authProvider);
+  // ВАЖНО: select, а не watch(authProvider) целиком — иначе любое изменение
+  // AuthState (например isOtpLoading при запросе OTP-кода: true, потом
+  // false) пересоздавало бы весь GoRouter, а с ним весь стек навигации и
+  // локальный State всех экранов (в т.ч. очищало бы уже введённый логин и
+  // сбрасывало Navigator.push поверх LoginScreen). Роутеру для редиректа
+  // нужен только isLoggedIn — на него и подписываемся.
+  final isLoggedIn = ref.watch(authProvider.select((s) => s.isLoggedIn));
 
   return GoRouter(
     initialLocation: '/login',
 
     // redirect вызывается перед каждым переходом
     redirect: (context, state) {
-      final isLoggedIn = authState.isLoggedIn;
       final onLogin = state.matchedLocation == '/login';
 
       // Не залогинен — всегда на логин
