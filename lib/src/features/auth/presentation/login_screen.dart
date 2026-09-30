@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/network/api_constants.dart';
 import 'auth_providers.dart';
 import 'otp_screen.dart';
 
@@ -135,13 +136,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 16),
                   ],
 
-                  // Поле логина
+                  // Поле логина. В мультитенантных сборках (TENANT_API_URL
+                  // задан в env/*.json) можно указать бренд через "@" —
+                  // "451@raimbek" — тогда перед входом сам определит сервер
                   TextFormField(
                     controller: _usernameCtrl,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Логин',
-                      prefixIcon: Icon(Icons.person_outline_rounded),
-                      border: OutlineInputBorder(
+                      hintText: ApiConstants.tenantApiBaseUrl.isNotEmpty
+                          ? 'например 451@raimbek'
+                          : null,
+                      prefixIcon: const Icon(Icons.person_outline_rounded),
+                      border: const OutlineInputBorder(
                         borderRadius: BorderRadius.all(Radius.circular(12)),
                       ),
                     ),

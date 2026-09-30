@@ -141,3 +141,44 @@ from the cart before submitting and blocks client-side — instead of surfacing 
 Backend uses UUIDs (not ints) for most domain records — model IDs are `String`, except `User.id` which is
 still an `int` from a different endpoint (`accounts/users/me/`). Don't assume all IDs are the same type
 across features.
+
+### Multi-tenant login (`rmt-api-ce`)
+
+Production (`RB`, `GP`, `KWS`, `raimbek`, `maximus`, ...) is meant to run as **one app binary for every
+white-label brand**, not a separate build per brand — this is what makes a single App Store/Play Market
+listing possible instead of one listing per brand. The mechanism: a login can be `<username>@<brand>`
+(e.g. `451@raimbek.kz`) — before hitting `accounts/login/`, the app resolves `<brand>` against a shared,
+pre-existing .NET microservice called `rmt-api-ce` (confirmed running on `rmt20-dev`, container name
+`rmt-api-ce`, `dotnet` runtime, internal port `5008`, **not part of this repo or `rmt-web`** — found by
+inspecting the running container directly, no source checked out anywhere we have access to).
+
+- **API**: single endpoint, `GET /api/v1/tenant-settings?domain=<brand>` → `{ id, shortName, tenantName,
+  isDisabled, loginEndpointURL, serviceEndpointURL }`. `loginEndpointURL` and `serviceEndpointURL` are
+  identical in every row seen so far — client only needs `serviceEndpointURL`.
+- **Public URL** (dev): `https://dev2-mgmt.rmt.kz/` (nginx container `nginx20` on the shared host proxies
+  `dev2-mgmt.rmt.kz` → `rmt-api-ce:5008`). Prod's equivalent hostname is unconfirmed — do not guess it,
+  ask/verify before filling in `env/prod.json`'s `TENANT_API_URL`.
+- **Backing DB**: Postgres container `postgresql20` (not the regular `rmt-web` postgres), database
+  `rmtmgmt`, table `Tenant`. Queried directly on `rmt20-dev` and got back only 5 rows (`raimbek`,
+  `maximus`, `asd`, `raimbek-dev`, `kws`) — `asd` looks like stray test data (`ShortName` doesn't match
+  its `ServiceEndPointURL`, which points at the `mp` brand). This is very likely an incomplete/stale
+  dev-only subset — `rb`/`gp` (both real production brands) were **not** present. Don't treat this dev
+  list as the full/authoritative tenant set; re-check on prod before relying on it.
+- **`raimbek` vs `raimbek-dev` are two different tenants** — `raimbek` → prod
+  (`https://raimbek-rmt.velait.kz/`), `raimbek-dev` → `https://rmt20-dev.raimbek.com/` (matches
+  `env/dev.json`'s `BASE_URL` exactly). Logging in with `451@raimbek.kz` on a dev build will silently
+  resolve to the **production** `raimbek` backend, not dev — always use `451@raimbek-dev.kz` (or just
+  `raimbek-dev`, no TLD needed) when testing multi-tenant login against dev.
+- **Domain-parsing convention we implemented** (`AuthNotifier._resolveTenantIfNeeded` in
+  `auth_providers.dart`): take everything after `@`, then split on `.` and use the first segment as the
+  tenant key (`raimbek-dev.kz` → `raimbek-dev`; a hyphen doesn't get split, only a literal dot does).
+  This matches the `TenantName` values seen in the DB, but **was inferred from the DB schema and nginx
+  config, not verified against the actual legacy client's source** — nobody has seen that client's code.
+  Confirm end-to-end against a real login before trusting it fully.
+- **Implementation**: `ApiConstants.tenantApiBaseUrl` (env var `TENANT_API_URL`, empty by default — empty
+  means multi-tenancy is off, e.g. `env/local.json` against a single docker backend) →
+  `AuthRepository.resolveTenant(domain)` (data impl uses a throwaway `Dio` instance, since the main
+  `ApiClient`'s baseUrl isn't known yet) → `ApiClient.setBaseUrl()` mutates `dio.options.baseUrl` in place
+  on success. `env/dev.json` has `TENANT_API_URL` set to the confirmed dev CE URL; `env/prod.json` does
+  not yet (unconfirmed prod hostname, see above) — prod builds currently just keep using the old
+  fixed-`BASE_URL` behavior until that's filled in.

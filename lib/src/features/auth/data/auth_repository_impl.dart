@@ -12,6 +12,49 @@ class AuthRepositoryImpl implements AuthRepository {
   AuthRepositoryImpl(this._client);
 
   @override
+  Future<void> resolveTenant(String domain) async {
+    // Мультитенантность выключена (локальная сборка против одного бэкенда,
+    // TENANT_API_URL не задан в env/*.json) — работаем как раньше
+    if (ApiConstants.tenantApiBaseUrl.isEmpty) return;
+
+    try {
+      // Отдельный Dio на этот один запрос — до резолва мы ещё не знаем
+      // baseUrl основного _client, конфигурировать там нечего
+      final tenantDio = Dio(
+        BaseOptions(baseUrl: ApiConstants.tenantApiBaseUrl),
+      );
+
+      final response = await tenantDio.get(
+        ApiConstants.tenantSettings,
+        queryParameters: {'domain': domain},
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final serviceUrl = data['serviceEndpointURL'] as String?;
+      final isDisabled = data['isDisabled'] as bool? ?? false;
+
+      if (serviceUrl == null || serviceUrl.isEmpty) {
+        throw Exception('Организация «$domain» не найдена');
+      }
+      if (isDisabled) {
+        throw Exception('Организация «$domain» отключена');
+      }
+
+      // serviceEndpointURL — корень бэкенда (например
+      // "https://raimbek-rmt.velait.kz/"), API как и везде под /api/v1/
+      final normalizedRoot = serviceUrl.endsWith('/')
+          ? serviceUrl
+          : '$serviceUrl/';
+      _client.setBaseUrl('${normalizedRoot}api/v1/');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        throw Exception('Организация «$domain» не найдена');
+      }
+      throw Exception('Не удалось определить сервер организации');
+    }
+  }
+
+  @override
   Future<void> requestOtp({required String username}) async {
     try {
       // POST /api/v1/accounts/login/code/

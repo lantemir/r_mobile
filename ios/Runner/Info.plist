@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Приложению нужен доступ к геолокации, чтобы отмечать место визита на торговой точке.</string>
 </dict>
 </plist>

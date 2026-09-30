@@ -46,6 +46,12 @@ class ApiClient {
     );
   }
 
+  // Переключить baseUrl после резолва тенанта через rmt-api-ce —
+  // dio.options.baseUrl можно менять на лету, пересоздавать Dio не нужно
+  void setBaseUrl(String url) {
+    dio.options.baseUrl = url;
+  }
+
   // Статический метод — читает ошибку из ответа Django
   // Django DRF возвращает ошибки в формате:
   // {"non_field_errors": ["Неверный логин"]}

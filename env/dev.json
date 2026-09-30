@@ -1,3 +1,4 @@
 {
-  "BASE_URL": "https://rmt20-dev.raimbek.com/api/v1/"
+  "BASE_URL": "https://rmt20-dev.raimbek.com/api/v1/",
+  "TENANT_API_URL": "https://dev2-mgmt.rmt.kz/"
 }

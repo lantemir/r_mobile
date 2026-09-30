@@ -94,13 +94,33 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  // Логин вида "451@raimbek.kz" — до похода в accounts/login/ нужно
+  // сначала определить бэкенд этого бренда через rmt-api-ce и настроить
+  // ApiClient на него. Возвращает "чистый" username без "@домен" для
+  // отправки на сам бэкенд. Если "@" нет — мультитенантность не при делах,
+  // логин уходит как есть (локальная сборка против одного бэкенда).
+  Future<String> _resolveTenantIfNeeded(String username) async {
+    final atIndex = username.indexOf('@');
+    if (atIndex == -1) return username;
+
+    final localPart = username.substring(0, atIndex);
+    final rawDomain = username.substring(atIndex + 1);
+    // "raimbek.kz" -> "raimbek"; "raimbek" без TLD остаётся как есть —
+    // rmt-api-ce матчит по короткому имени, не по полному домену
+    final tenantKey = rawDomain.split('.').first;
+
+    await _repository.resolveTenant(tenantKey);
+    return localPart;
+  }
+
   // Запросить одноразовый код (OTP) — для торговых агентов
   // Код в ответе не приходит, его агенту сообщает супервайзер
   Future<bool> requestOtp(String username) async {
     state = state.copyWith(isOtpLoading: true, clearError: true);
 
     try {
-      await _repository.requestOtp(username: username);
+      final resolvedUsername = await _resolveTenantIfNeeded(username);
+      await _repository.requestOtp(username: resolvedUsername);
       state = state.copyWith(isOtpLoading: false);
       return true; // успех
     } catch (e) {
@@ -118,7 +138,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
-      await _repository.login(username: username, password: password);
+      final resolvedUsername = await _resolveTenantIfNeeded(username);
+      await _repository.login(username: resolvedUsername, password: password);
       final user = await _repository.getMe();
       state = state.copyWith(isLoading: false, isLoggedIn: true, user: user);
       return true; //успех

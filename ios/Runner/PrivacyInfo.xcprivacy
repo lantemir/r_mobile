@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePreciseLocation</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+	<!--
+		NSPrivacyAccessedAPITypes намеренно оставлен пустым: точные reason-коды
+		(например для File Timestamp / UserDefaults API, которые могут дёргать
+		плагины типа geolocator/hive_flutter/flutter_secure_storage) видны
+		только по предупреждениям Xcode при архивации на macOS — на Windows
+		это не проверить. Перед первой отправкой в App Store Connect собрать
+		архив на Mac и заполнить этот массив по тому, что реально подсветит
+		Xcode (Product > Archive покажет missing reason API warnings).
+	-->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+</dict>
+</plist>

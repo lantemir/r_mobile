@@ -12,6 +12,17 @@ class ApiConstants {
     defaultValue: 'http://10.0.2.2:8000/api/v1/',
   );
 
+  // Общий на все бренды сервис "rmt-api-ce" — по домену из логина
+  // (например "raimbek" из "451@raimbek.kz") отдаёт реальный URL бэкенда
+  // этого бренда. Пусто по умолчанию — значит мультитенантность выключена,
+  // работаем с фиксированным baseUrl выше (локальная разработка против
+  // одного бэкенда).
+  static const String tenantApiBaseUrl = String.fromEnvironment(
+    'TENANT_API_URL',
+    defaultValue: '',
+  );
+  static const String tenantSettings = 'api/v1/tenant-settings';
+
   // Auth — из accounts/urls.py
   static const String login = 'accounts/login/';
   static const String loginCode = 'accounts/login/code/';
