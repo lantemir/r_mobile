@@ -182,3 +182,41 @@ inspecting the running container directly, no source checked out anywhere we hav
   on success. `env/dev.json` has `TENANT_API_URL` set to the confirmed dev CE URL; `env/prod.json` does
   not yet (unconfirmed prod hostname, see above) — prod builds currently just keep using the old
   fixed-`BASE_URL` behavior until that's filled in.
+
+### Planned: driver/logistics feature (not started — design-only as of 2026-09-30)
+
+A future `logistics`/`delivery` feature for carrier-side drivers (as opposed to the existing
+`TRADE_AGENT` sales-rep flow) was scoped but no code written yet. Full backend-reality findings are
+in `rmt-web/CLAUDE.md`'s `deliveries` section — short version: the backend's `Carrier`/`Crew`/
+`CrewOrder`/`CrewInvoice` models are real and heavily used in production (checked directly against
+the `rb`/raimbek prod DB, not just read from code), but `Crew.driver`/`Driver`/`Loader` are
+essentially dead — real assignment happens at the `Carrier` level, which is loosely-typed free text
+per delivery run, not a stable link to a person. Planned client-side approach given that: driver
+logs in with a plain password (new `UserType.DRIVER`, reusing the existing generic password branch
+of `LoginView` — no OTP, no new auth UI needed beyond what `LoginScreen` already has), then picks
+their own run for the day from a short, org-scoped list of today's `Crew` entries (no automatic
+person-matching — the backend has no reliable way to do that yet).
+
+Refined 2026-10-01: rather than always showing the list, store a one-time "name hint" string per
+driver account (e.g. `"Бериков Берик"` — set once when the account is created, NOT re-entered daily
+by anyone) and have the app try `Carrier.objects.filter(organization=<driver's org>, delivery_date=
+today, title__icontains=name_hint)` first. Exactly one match → open its stops directly, no list
+shown. Zero or 2+ matches → fall back to the org-scoped list (never silently show nothing). This
+still works despite a fresh `Carrier` row existing per run (the "N загруз" suffix changes daily, the
+name substring doesn't), but deliberately does NOT try to be fully automatic — it fails safe to the
+list rather than guessing wrong, because distribution "от Транспортного средства" (by `Vehicle`,
+see `rmt-web/CLAUDE.md`) has no person name in the title at all, and two drivers could share a
+similar name. The list stays as the permanent fallback path, not a temporary stepping stone to
+remove later. Mockup of the 4 planned screens
+(driver home, stops list, map, stop detail) exists as a Claude-Design canvas artifact from this
+session — ask the user for the link if picking this back up, it wasn't saved to the repo.
+
+Map approach decided: `flutter_map` + OpenStreetMap tiles for the in-app overview (pins over outlet
+locations, no API key/billing needed) — NOT `google_maps_flutter` (Google Cloud billing friction)
+and NOT embedding a 2GIS/Yandex SDK directly (2GIS has no confirmed mature Flutter plugin as of this
+writing — verify before relying on it; Yandex's `yandex_mapkit` is a third-party package, and Yandex
+being a Russian company may be a non-technical concern worth raising with the client given this is a
+Kazakhstan-market app). Turn-by-turn navigation is explicitly NOT being built in-app — a "Проложить
+маршрут" button hands off to whatever navigation app (2GIS most likely, given it's the dominant app
+in Kazakhstan) is already installed on the driver's phone via a deep link/`url_launcher`, rather than
+embedding real routing.
